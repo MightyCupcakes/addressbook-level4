@@ -2,7 +2,9 @@ package seedu.address.logic.parser;
 
 import java.io.IOException;
 import java.lang.annotation.Annotation;
+import java.util.Arrays;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.logging.Logger;
 
@@ -14,18 +16,50 @@ import seedu.address.commons.core.LogsCenter;
 
 public class ParserRegistry {
 
-    private final Logger logger = LogsCenter.getLogger(ParserRegistry.class);
     private static final ParserRegistry INSTANCE = new ParserRegistry();
 
-    private final Map<String, Class<? extends CommandParser>> parserRegistry;
+    private final Logger logger = LogsCenter.getLogger(ParserRegistry.class);
+
+    private final Map<String, CommandParserInfo> parserRegistry;
 
     private ParserRegistry() {
+        this(ParserRegistry.class.getPackage().getName());
+    }
+
+    protected ParserRegistry(String packageName) {
         parserRegistry = Maps.newHashMap();
-        getCommandClasses(this.getClass().getPackage().getName());
+        getCommandClasses(packageName);
     }
 
     public static ParserRegistry getInstance() {
         return INSTANCE;
+    }
+
+    /**
+     * Returns the corresponding command parser for the given command word.
+     * <br>
+     * Returns {@code Optional.empty()} if no such command parser exists.
+     */
+    public Optional<CommandParser> getCommandParser(String commandWord) {
+        CommandParserInfo commandInfo = parserRegistry.get(commandWord);
+
+        if (commandInfo == null) {
+            return Optional.empty();
+        }
+
+        try {
+            CommandParser parser;
+
+            if (commandInfo.passParam) {
+                parser = commandInfo.parserClass.getConstructor(String.class).newInstance(commandWord);
+            } else {
+                parser = commandInfo.parserClass.newInstance();
+            }
+
+            return Optional.of(parser);
+        } catch (Exception e) {
+            return Optional.empty();
+        }
     }
 
     private void getCommandClasses(String packageName) {
@@ -53,16 +87,16 @@ public class ParserRegistry {
     }
 
     private void registerCommandParser(Class<?> clazz) {
-        @SuppressWarnings("unchecked")
-        Class<? extends CommandParser> commandParser = (Class<? extends CommandParser>) clazz;
 
-        String commandWord = getCommandWord(commandParser);
-        parserRegistry.put(commandWord, commandParser);
+        CommandParserInfo commandInfo = getCommandInfo(clazz);
 
-        logger.info("Command Parser registered for command word " + commandWord);
+        for (String commandWord : commandInfo.commandWords) {
+            parserRegistry.put(commandWord, commandInfo);
+            logger.info("Command Parser registered for command word " + commandWord);
+        }
     }
 
-    private String getCommandWord(Class<? extends CommandParser> thisClass) {
+    private CommandParserInfo getCommandInfo(Class<?> thisClass) {
         Annotation[] annotations = thisClass.getAnnotations();
 
         RegisterParser registerAnnotation = null;
@@ -75,6 +109,21 @@ public class ParserRegistry {
         }
 
         assert registerAnnotation != null;
-        return registerAnnotation.commandWord();
+        return new CommandParserInfo(registerAnnotation.passCommandWordAsParam(),
+                Arrays.asList(registerAnnotation.commandWord()),
+                thisClass);
+    }
+
+    private static class CommandParserInfo {
+        public boolean passParam;
+        public Iterable<String> commandWords;
+        public Class<? extends CommandParser> parserClass;
+
+        @SuppressWarnings("unchecked")
+        public CommandParserInfo(boolean passParam, Iterable<String> commandWords, Class<?> parserClass) {
+            this.passParam = passParam;
+            this.commandWords = commandWords;
+            this.parserClass = (Class<? extends CommandParser>) parserClass;
+        }
     }
 }

@@ -1,16 +1,22 @@
 package seedu.address.logic.parser;
 
-import seedu.address.commons.exceptions.IllegalValueException;
-import seedu.address.commons.util.StringUtil;
-import seedu.address.logic.commands.*;
-import seedu.address.logic.parser.ArgumentTokenizer.*;
+import static seedu.address.commons.core.Messages.MESSAGE_INVALID_COMMAND_FORMAT;
+import static seedu.address.commons.core.Messages.MESSAGE_UNKNOWN_COMMAND;
 
-import java.util.*;
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.Optional;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import static seedu.address.commons.core.Messages.MESSAGE_INVALID_COMMAND_FORMAT;
-import static seedu.address.commons.core.Messages.MESSAGE_UNKNOWN_COMMAND;
+import seedu.address.commons.util.StringUtil;
+import seedu.address.logic.commands.Command;
+import seedu.address.logic.commands.DeleteCommand;
+import seedu.address.logic.commands.FindCommand;
+import seedu.address.logic.commands.HelpCommand;
+import seedu.address.logic.commands.IncorrectCommand;
+import seedu.address.logic.commands.SelectCommand;
 
 /**
  * Parses user input.
@@ -26,10 +32,8 @@ public class Parser {
 
     private static final Pattern KEYWORDS_ARGS_FORMAT =
             Pattern.compile("(?<keywords>\\S+(?:\\s+\\S+)*)"); // one or more keywords separated by whitespace
-    private static final Prefix phoneNumberPrefix = new Prefix("p/");
-    private static final Prefix emailPrefix = new Prefix("e/");
-    private static final Prefix addressPrefix = new Prefix("a/");
-    private static final Prefix tagsPrefix = new Prefix("t/");
+
+    private static final ParserRegistry parserRegistry = ParserRegistry.getInstance();
 
     /**
      * Parses user input into command for execution.
@@ -45,65 +49,14 @@ public class Parser {
 
         final String commandWord = matcher.group("commandWord");
         final String arguments = matcher.group("arguments");
-        switch (commandWord) {
 
-        case AddCommand.COMMAND_WORD:
-            return prepareAdd(arguments);
+        Optional<CommandParser> parser = parserRegistry.getCommandParser(commandWord);
 
-        case SelectCommand.COMMAND_WORD:
-            return prepareSelect(arguments);
-
-        case DeleteCommand.COMMAND_WORD:
-            return prepareDelete(arguments);
-
-        case ClearCommand.COMMAND_WORD:
-            return new ClearCommand();
-
-        case FindCommand.COMMAND_WORD:
-            return prepareFind(arguments);
-
-        case ListCommand.COMMAND_WORD:
-            return new ListCommand();
-
-        case ExitCommand.COMMAND_WORD:
-            return new ExitCommand();
-
-        case HelpCommand.COMMAND_WORD:
-            return new HelpCommand();
-
-        default:
+        if (parser.isPresent()) {
+            return parser.get().prepareCommand(arguments);
+        } else {
             return new IncorrectCommand(MESSAGE_UNKNOWN_COMMAND);
         }
-    }
-
-    /**
-     * Parses arguments in the context of the add person command.
-     *
-     * @param args full command args string
-     * @return the prepared command
-     */
-    private Command prepareAdd(String args) {
-        ArgumentTokenizer argsTokenizer = new ArgumentTokenizer(phoneNumberPrefix, emailPrefix,
-                                                                addressPrefix, tagsPrefix);
-        argsTokenizer.tokenize(args);
-        try {
-            return new AddCommand(
-                    argsTokenizer.getPreamble().get(),
-                    argsTokenizer.getValue(phoneNumberPrefix).get(),
-                    argsTokenizer.getValue(emailPrefix).get(),
-                    argsTokenizer.getValue(addressPrefix).get(),
-                    toSet(argsTokenizer.getAllValues(tagsPrefix))
-            );
-        } catch (NoSuchElementException nsee) {
-            return new IncorrectCommand(String.format(MESSAGE_INVALID_COMMAND_FORMAT, AddCommand.MESSAGE_USAGE));
-        } catch (IllegalValueException ive) {
-            return new IncorrectCommand(ive.getMessage());
-        }
-    }
-
-    private Set<String> toSet(Optional<List<String>> tagsOptional) {
-        List<String> tags = tagsOptional.orElse(Collections.emptyList());
-        return new HashSet<>(tags);
     }
 
     /**
