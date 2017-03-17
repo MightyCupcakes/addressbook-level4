@@ -10,5 +10,5 @@
         <URL value="@Extensions.css" />
     </stylesheets>
 
-    <WebView fx:id="browser"/>
+    <WebView fx:id="browser" />
 </AnchorPane>
